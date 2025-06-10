@@ -3,56 +3,73 @@ import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-from datetime import datetime
 
-# Title
-st.title("📊 Momentum Dashboard - NSE Dummy Data")
+# Page config
+st.set_page_config(page_title="Momentum Dashboard", layout="wide")
 
-# Load dummy data (replace this section with live NSE data fetching later)
-@st.cache_data
-def load_data():
-    data = pd.read_csv("dummy_nse_data.csv")
-    return data
+# Dummy data generation
+def generate_dummy_data():
+    sectors = ['Auto', 'Banks', 'IT', 'FMCG', 'Energy']
+    stocks = [f'Stock_{i}' for i in range(1, 26)]
+    data = []
 
-data = load_data()
+    for stock in stocks:
+        sector = np.random.choice(sectors)
+        crsi_benchmark = np.random.uniform(-5, 5)
+        pct_rank_benchmark = np.random.uniform(0, 100)
+        crsi_sector = np.random.uniform(-5, 5)
+        pct_rank_sector = np.random.uniform(0, 100)
+        data.append([stock, sector, crsi_benchmark, pct_rank_benchmark, crsi_sector, pct_rank_sector])
 
-# Sidebar for date filter
-date_selected = st.sidebar.selectbox("Select Date", sorted(data['Date'].unique(), reverse=True))
-data_date = data[data['Date'] == date_selected]
+    df = pd.DataFrame(data, columns=['Stock', 'Sector', 'CRSI_vs_Benchmark', 'Percentile_vs_Benchmark', 'CRSI_vs_Sector', 'Percentile_vs_Sector'])
+    return df
 
-# Dashboard 1: Sector Summary
-st.subheader(f"📈 Sector Relative Strength vs Benchmark on {date_selected}")
+# Load dummy data
+df = generate_dummy_data()
 
-sector_summary = data_date.groupby('Sector').agg({
-    'Sector_CRSI_vs_Benchmark': 'first',
-    'Sector_PercentileCSR_vs_Benchmark': 'first'
-}).reset_index()
+# Sector summary
+def sector_summary(df):
+    sector_df = df.groupby('Sector').agg(
+        Sector_CRSI=('CRSI_vs_Benchmark', 'mean'),
+        Sector_Percentile=('Percentile_vs_Benchmark', 'mean')
+    ).reset_index()
+    return sector_df
 
-fig, ax = plt.subplots(figsize=(8, len(sector_summary) * 0.5))
-sns.heatmap(sector_summary[['Sector_CRSI_vs_Benchmark', 'Sector_PercentileCSR_vs_Benchmark']], 
-            annot=True, fmt=".2f", cmap="coolwarm", linewidths=0.5, ax=ax,
-            yticklabels=sector_summary['Sector'])
+sector_df = sector_summary(df)
 
-plt.title("Sector Performance Heatmap")
+# First Dashboard: Sector Overview
+st.title("📊 Momentum Dashboard - Sector Overview")
+st.write("**Relative Strength of Sectors vs Benchmark**")
+
+# Heatmap-like table display
+sector_df_sorted = sector_df.sort_values(by='Sector_CRSI', ascending=False)
+
+fig, ax = plt.subplots(figsize=(8, 3))
+sns.heatmap(
+    sector_df_sorted[['Sector_CRSI', 'Sector_Percentile']].T,
+    annot=sector_df_sorted[['Sector_CRSI', 'Sector_Percentile']].T,
+    cmap='coolwarm', cbar=False, linewidths=0.5, fmt=".2f",
+    xticklabels=sector_df_sorted['Sector']
+)
+plt.yticks(rotation=0)
 st.pyplot(fig)
 
-# Select Sector
-selected_sector = st.selectbox("Select Sector to View Constituents", sector_summary['Sector'])
+# Sector selection
+selected_sector = st.selectbox("Select a Sector to view Constituents", sector_df_sorted['Sector'])
+st.write(f"**Showing stocks from sector:** {selected_sector}")
 
-# Dashboard 2: Stock-Level Detail
-st.subheader(f"📊 Stock Performance in {selected_sector} on {date_selected}")
+# Second Dashboard: Stock level inside selected sector
+sector_stocks = df[df['Sector'] == selected_sector]
 
-sector_stocks = data_date[data_date['Sector'] == selected_sector][[
-    'Stock', 'CRSI_vs_Benchmark', 'PercentileCSR_vs_Benchmark', 'CRSI_vs_Sector', 
-    'PercentileCSR_vs_Sector', 'Self_Performance']]
-
-fig2, ax2 = plt.subplots(figsize=(10, len(sector_stocks) * 0.5))
-sns.heatmap(sector_stocks.drop('Stock', axis=1), 
-            annot=True, fmt=".2f", cmap="YlGnBu", linewidths=0.5, ax=ax2,
-            yticklabels=sector_stocks['Stock'])
-
-plt.title(f"Stock Relative Strength and Percentiles in {selected_sector}")
+fig2, ax2 = plt.subplots(figsize=(10, 4))
+sns.heatmap(
+    sector_stocks[['CRSI_vs_Benchmark', 'Percentile_vs_Benchmark', 'CRSI_vs_Sector', 'Percentile_vs_Sector']].T,
+    annot=sector_stocks[['CRSI_vs_Benchmark', 'Percentile_vs_Benchmark', 'CRSI_vs_Sector', 'Percentile_vs_Sector']].T,
+    cmap='coolwarm', cbar=False, linewidths=0.5, fmt=".2f",
+    xticklabels=sector_stocks['Stock']
+)
+plt.yticks(rotation=0)
 st.pyplot(fig2)
 
-# Auto-refresh info
-st.caption("Data auto-updates daily at 10 PM IST (Dummy data in this prototype)")
+# Note
+st.info("This is a prototype dashboard using dummy NSE data. The full version will auto-update daily at 10 PM with live data.")
